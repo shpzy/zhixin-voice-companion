@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="yYusdRxycvK8BJQofSye24">
+<head data-page-node-id="jd5TeaBhXhQxH3DtoeBOJG">
+    <meta charset="UTF-8" data-page-node-id="cW320NPeXQTTuAVTvqRJAe">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" data-page-node-id="eqm3AkrNeSOjPcPfSBVdm3">
+    <title>知心 - 智能心理情绪陪伴</title>
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 Vue 3 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- 引入 FontAwesome 图标库 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" data-page-node-id="oila0emQAuFKzjY8A36Ww5">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#2DD4BF',
+                        primaryDark: '#0F766E',
+                        ink: '#1F2937',
+                    },
+                    fontFamily: { sans: ['"PingFang SC"', '"Microsoft YaHei"', 'system-ui', 'sans-serif'] }
+                }
+            }
+        }
+        // ===== 后端地址 =====
+        // 模式1（单服务部署，宝塔生产）：经 http://IP:端口/app 访问时，页面由后端托管，API 同源同端口
+        // 模式2（本地开发）：静态服务 8080 独立部署，API 指向 BACKEND_PORT（当前 8001）
+        // 模式3（file:// 本地预览）：指向 127.0.0.1:BACKEND_PORT
+        const BACKEND_PORT = '8001';
+        const API_BASE = window.location.protocol === 'file:'
+            ? `http://127.0.0.1:${BACKEND_PORT}`
+            : (window.location.pathname.startsWith('/app')
+                ? window.location.origin
+                : `http://${window.location.hostname}:${BACKEND_PORT}`);
+    </script>
+    <style>
+        html, body { margin: 0; height: 100%; }
+        body {
+            font-family: '"PingFang SC"', '"Microsoft YaHei"', system-ui, sans-serif;
+            background: linear-gradient(135deg, #e0f7f4 0%, #eef2ff 45%, #faf0f6 100%);
+            background-attachment: fixed;
+        }
+        /* 背景柔光球 */
+        .aurora { position: fixed; inset: 0; overflow: hidden; z-index: 0; pointer-events: none; }
+        .aurora::before, .aurora::after {
+            content: ''; position: absolute; width: 320px; height: 320px; border-radius: 50%;
+            filter: blur(70px); opacity: 0.45;
+        }
+        .aurora::before { background: #5eead4; top: -80px; left: -60px; animation: float1 14s ease-in-out infinite; }
+        .aurora::after { background: #c4b5fd; bottom: -90px; right: -60px; animation: float2 16s ease-in-out infinite; }
+        @keyframes float1 { 0%,100%{ transform: translate(0,0);} 50%{ transform: translate(40px,30px);} }
+        @keyframes float2 { 0%,100%{ transform: translate(0,0);} 50%{ transform: translate(-40px,-30px);} }
+
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .glass { background: rgba(255,255,255,0.72); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+
+        /* 录音呼吸灯 */
+        @keyframes pulse-ring {
+            0% { transform: scale(0.85); box-shadow: 0 0 0 0 rgba(45,212,191,0.6); }
+            70% { transform: scale(1); box-shadow: 0 0 0 16px rgba(45,212,191,0); }
+            100% { transform: scale(0.85); box-shadow: 0 0 0 0 rgba(45,212,191,0); }
+        }
+        .recording-pulse { animation: pulse-ring 1.6s infinite; }
+
+        /* AI 说话声纹 */
+        .eq { display: inline-flex; align-items: flex-end; gap: 3px; height: 16px; }
+        .eq span { width: 3px; background: #0F766E; border-radius: 3px; animation: eq 0.9s ease-in-out infinite; }
+        .eq span:nth-child(2){ animation-delay: .15s; } .eq span:nth-child(3){ animation-delay: .3s; }
+        .eq span:nth-child(4){ animation-delay: .45s; } .eq span:nth-child(5){ animation-delay: .6s; }
+        @keyframes eq { 0%,100%{ height: 5px; } 50%{ height: 16px; } }
+
+        .fade-enter-active, .fade-leave-active { transition: opacity .3s ease, transform .3s ease; }
+        .fade-enter-from { opacity: 0; transform: translateY(10px); }
+        .fade-leave-to { opacity: 0; transform: translateY(-10px); }
+    </style>
+</head>
+<body class="flex justify-center items-center h-screen w-screen overflow-hidden text-ink" data-page-node-id="9J1JXJh0OS8vXCw15yOZzo">
+<div class="aurora" data-page-node-id="OISZ4xrOuH4urKdO98jHO7"></div>
+
+<!-- Vue 挂载点 -->
+<div id="app" class="relative z-10 w-full h-full max-w-md glass shadow-2xl overflow-hidden sm:rounded-[2rem] sm:h-[92vh] flex flex-col" data-page-node-id="MYNlFpzHlaepxPlmFDUJVa">
+
+    <!-- ============ 页面一：欢迎与边界声明 ============ -->
+    <transition name="fade" mode="out-in" data-page-node-id="gnkJZisgVJpHLhaKzNlwD5">
+    <div v-if="currentPage === 'landing'" key="landing" class="absolute inset-0 z-10 bg-white/85 flex flex-col justify-center px-8 text-center" data-page-node-id="qUtr1Vz6NtS8usTiyMB7E4">
+        <div class="mb-8" data-page-node-id="n4JGl8Dnz2uL8pOWAkUXB0">
+            <div class="w-24 h-24 bg-gradient-to-br from-primary/30 to-primaryDark/20 rounded-full mx-auto flex items-center justify-center mb-5 shadow-inner" data-page-node-id="nU5cf7bwRmd8a3yDt9OVOC">
+                <i class="fa-solid fa-leaf text-4xl text-primaryDark" data-page-node-id="ZpuNQQylk3taDB9u4nMWRP"></i>
+            </div>
+            <h1 class="text-4xl font-bold tracking-[0.2em] text-ink" data-page-node-id="UQuYnVsdkrYWxWPiBA05cx">知心</h1>
+            <p class="text-gray-500 mt-2 text-sm tracking-wide" data-page-node-id="L8NpGQ2mCaImHDOT9RzJ5O">你的日常情绪树洞 · 7×24 小时陪伴</p>
+        </div>
+        <div class="bg-gray-50/80 p-5 rounded-3xl text-left border border-gray-100 shadow-sm mb-8" data-page-node-id="86g84iaspSk7OQ86pD60Qv">
+            <h2 class="font-bold text-gray-700 mb-2 flex items-center" data-page-node-id="71BKIiTlEC1J3NNTHFGodf"><i class="fa-solid fa-shield-halved text-primary mr-2" data-page-node-id="Sj3ZCyOJdwC78tlfJ28gnp"></i>服务声明</h2>
+            <p class="text-sm text-gray-600 leading-relaxed" data-page-node-id="CLL3FUS2Pl4CIDkFEAvsml">
+                本项目仅提供日常情绪倾诉与非临床心理陪伴。<br data-page-node-id="7UcKNxVr4FTDPtMM9zSvGu"><br data-page-node-id="oIfHgnKrtLEuh9tEL6iwF6">
+                <span class="text-red-500 font-bold" data-page-node-id="nbXq4LVdARagkAlffT4FMc">郑重承诺：</span>系统不提供医疗诊断，不开具处方，不替代专业精神科医师。若您正经历严重心理危机或躯体不适，请立即寻求专业医疗帮助。<br data-page-node-id="XF5FGA21FH0DRRc65cZL7e"><br data-page-node-id="DpyiDBic3tgipFK3GDhseQ">
+                <span class="text-red-600 font-bold" data-page-node-id="o8uKmU9RGf77XRTKhwj1Nx">⚠️ 使用限制：本系统仅面向成年公众（18 周岁及以上），不面向 14 周岁以下未成年人。根据《未成年人网络保护条例》，未成年人须在监护人同意框架下另行评估。</span>
+            </p>
+        </div>
+        <button @click="agreeAndEnter" class="w-full bg-gradient-to-r from-primary to-primaryDark text-white font-bold py-4 rounded-full shadow-lg shadow-primary/30 hover:opacity-90 active:scale-[0.98] transition" data-page-node-id="Ob5XwheMbDaCYn9clbPNw9">
+            我已年满 18 周岁，并同意进入
+        </button>
+    </div>
+    </transition>
+
+    <!-- ============ 页面二：主聊天陪伴 ============ -->
+    <div v-if="currentPage === 'chat'" class="flex flex-col h-full w-full bg-transparent" data-page-node-id="uuq8RNo1iWxNQxhAuvsHB8">
+        <!-- 头部 -->
+        <header class="glass px-4 py-3 flex justify-between items-center shadow-sm z-10" data-page-node-id="QYHi0OZn2yO0VZCJSTg6wO">
+            <button @click="goMemory" class="w-10 h-10 rounded-full hover:bg-white/70 flex items-center justify-center text-gray-500 transition" data-page-node-id="cFIJmIeU5f59EujYlpQI0i">
+                <i class="fa-solid fa-brain text-lg" data-page-node-id="W7lOM7jWp1rsZmTmmOWhZF"></i>
+            </button>
+            <div class="font-bold text-lg text-ink flex items-center" data-page-node-id="b8YnPPwzJTRHhDTqwPr8IT">
+                知心
+                <span v-if="isPlaying" class="eq ml-2" data-page-node-id="Nv9Pny1fYiOfvHsCXfT3y1"><span data-page-node-id="mJCFNLJHbhwdjJOOxEhyHk"></span><span data-page-node-id="zf1ucNrYRoEiEfs15TEYns"></span><span data-page-node-id="B1MgMI0DK8DAuAu4StLG6t"></span><span data-page-node-id="xrI2rCDEXamZi2TBKYlbQP"></span><span data-page-node-id="N1Mbtvtc2h6f3ijKBUYXPV"></span></span>
+                <span v-else class="w-2 h-2 rounded-full bg-primary ml-2 animate-pulse" data-page-node-id="xnkhf2Uec22RFboLgc8ub9"></span>
+            </div>
+            <button @click="openVoiceModal" class="px-3 h-10 rounded-full bg-primary/10 text-primary hover:bg-primary/20 flex items-center justify-center gap-1.5 transition" :title="'当前声音：' + voiceName(currentVoice) + ' · 点击更换'" data-page-node-id="cFyK8sr1UfPQ8OrVpgvBL3">
+                <i class="fa-solid fa-volume-high text-base" data-page-node-id="aGbA17FsAagBy7lO5jAdqf"></i>
+                <span class="text-sm font-semibold" data-page-node-id="jEmzL7ENuFyF14XhKjZENE">声音</span>
+            </button>
+            <button @click="showSos = true" class="w-10 h-10 rounded-full bg-red-50 text-red-500 hover:bg-red-100 flex items-center justify-center transition font-bold text-sm" data-page-node-id="CQ4H54UMp5dpCnzNDxqxVG">
+                SOS
+            </button>
+        </header>
+
+        <!-- 聊天流 -->
+        <main id="chat-box" class="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar" data-page-node-id="dZymbrae3oGCF23Wqtn3vq">
+            <div v-for="(msg, index) in chatHistory" :key="index" :class="['flex items-end gap-2', msg.role === 'user' ? 'justify-end' : 'justify-start']" data-page-node-id="EB5Og2cWZ60zs1fqLuPPi8">
+                <!-- AI 头像 -->
+                <div v-if="msg.role === 'ai'" class="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-primaryDark flex items-center justify-center shrink-0 shadow" data-page-node-id="q1l4H4XTapaWArGuFAIu29">
+                    <i class="fa-solid fa-leaf text-white text-xs" data-page-node-id="knDIplnW9IO9kuIDVwHGdE"></i>
+                </div>
+                <!-- AI 气泡 -->
+                <div v-if="msg.role === 'ai'" class="max-w-[78%] bg-white/90 p-3.5 rounded-2xl rounded-tl-sm shadow-sm text-ink leading-relaxed text-[15px]" data-page-node-id="YnesSWZW5ZGAYD24mA2SZ2">
+                    {{ msg.text }}
+                    <div v-if="msg.audioUrl" class="flex items-center gap-2 mt-2 pt-2 border-t border-gray-100" data-page-node-id="fKgpBrpwAcy6ieiVnS1BE8">
+                        <button @click="replayAudio(msg)"
+                            :class="['flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition', msg.playing ? 'bg-primary text-white' : 'bg-primary/10 text-primary hover:bg-primary/20']" data-page-node-id="1MLCLtik5e42WsHALRCcbx">
+                            <i class="fa-solid" :class="msg.playing ? 'fa-volume-high animate-pulse' : 'fa-play'" data-page-node-id="JdvTjeLwrhGRXhIJ6AL2JT"></i>
+                            {{ msg.playing ? '播放中' : '播放语音' }}
+                        </button>
+                        <span v-if="msg.autoplayFailed" class="text-[11px] text-amber-500 leading-tight" data-page-node-id="nE7yPIFFD3b28EaX1YQjef">⚠ 自动播放被拦截，点上方按钮即可收听</span>
+                    </div>
+                </div>
+                <!-- 用户 气泡 -->
+                <div v-if="msg.role === 'user'" class="max-w-[78%] bg-gradient-to-br from-primary to-primaryDark p-3.5 rounded-2xl rounded-tr-sm shadow-md text-white leading-relaxed text-[15px]" data-page-node-id="mRk1OQ7CQ6pUtE4Mo2oxhg">
+                    {{ msg.text }}
+                </div>
+            </div>
+            <!-- 思考中 -->
+            <div v-if="isAiTyping" class="flex items-end gap-2 justify-start" data-page-node-id="jzaINem3LQIqDCG51cZtop">
+                <div class="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-primaryDark flex items-center justify-center shrink-0 shadow" data-page-node-id="0qFS8GnAvl5da47Q31KkXz">
+                    <i class="fa-solid fa-leaf text-white text-xs" data-page-node-id="Qetx4Qt1nfgfFGy0IQbz6C"></i>
+                </div>
+                <div class="bg-white/90 px-4 py-3 rounded-2xl rounded-tl-sm shadow-sm text-gray-500 flex items-center gap-2" data-page-node-id="SbevLtvr3GVDaEGqXmz1NJ">
+                    <i class="fa-solid fa-ellipsis animate-pulse text-primary" data-page-node-id="kX81x5BNCzqqvb4Uo21ANT"></i>
+                    <span class="text-sm" data-page-node-id="fdF8Hy9ef4FkLJn6M41Enr">知心正在思考…</span>
+                </div>
+            </div>
+        </main>
+
+        <!-- 底部输入 -->
+        <footer class="glass p-3 pb-6 sm:pb-3 shadow-[0_-4px_12px_-2px_rgba(0,0,0,0.06)]" data-page-node-id="8aGZKZuCaGeXNq45FRtT4h">
+            <div class="flex items-center space-x-2" data-page-node-id="VwPDRBdgfgDzAyHbi3gc4w">
+                <input v-model="inputText" @keyup.enter="sendMessage" type="text" placeholder="倾诉你的心声…" class="flex-1 bg-white/80 rounded-full px-5 py-3 outline-none focus:ring-2 focus:ring-primary/50 transition" data-page-node-id="cXFyCynDjOZHEPBT2Ti4Xm">
+                <button v-if="inputText" @click="sendMessage" class="w-12 h-12 bg-gradient-to-br from-primary to-primaryDark text-white rounded-full flex justify-center items-center shadow-md active:scale-95 transition" data-page-node-id="T7yAKKL9U286vHYjd9rQW8">
+                    <i class="fa-solid fa-paper-plane" data-page-node-id="QbgDlW6zXwehw83FBT7ZZF"></i>
+                </button>
+                <button v-else @mousedown="startRecording" @mouseup="stopRecording" @touchstart.prevent="startRecording" @touchend.prevent="stopRecording"
+                        :class="['w-12 h-12 rounded-full flex justify-center items-center transition-all', isRecording ? 'bg-gradient-to-br from-primary to-primaryDark text-white recording-pulse' : 'bg-white/80 text-gray-500']" data-page-node-id="8MC8nb267Vdrad7WKSbIF5">
+                    <i class="fa-solid fa-microphone" data-page-node-id="V83A3dUJKs9eBY3dpuPnAJ"></i>
+                </button>
+            </div>
+            <div class="text-center mt-2 text-xs text-gray-400" data-page-node-id="QBGdCmsAFm3J6rHU9vg2AF">
+                <span v-if="isRecording" class="text-primaryDark font-medium" data-page-node-id="Qc67twqcdYcTa5VyphVxsf">正在聆听，松开结束…</span>
+                <span v-else-if="voiceHint" class="text-amber-600" data-page-node-id="vwDmdvS7C2FQJeaDxtiPGn">{{ voiceHint }}</span>
+                <span v-else-if="!speechSupported" class="opacity-70" data-page-node-id="zdikLD1Y69BccGb2mGr3rV">按住语音（当前浏览器不支持，可直接打字）</span>
+                <span v-else data-page-node-id="ry8PLMrRLx8qDTNXzgn7y9">按住进行语音倾诉</span>
+            </div>
+        </footer>
+
+            <!-- iOS 静音拨片提示 toast（播放语音时出现，自动消失） -->
+            <div v-if="muteHint" class="fixed top-14 left-1/2 -translate-x-1/2 z-50 bg-amber-50 border border-amber-200 text-amber-700 text-xs px-4 py-2.5 rounded-full shadow-lg whitespace-nowrap" data-page-node-id="q18QBM1zJ0EI2HteNDfI2q">
+                <i class="fa-solid fa-volume-xmark mr-1" data-page-node-id="wbYXECCHZyGK69NUk9hDDR"></i>没听到声音？请检查 iPhone 侧面的静音拨片
+            </div>
+
+            <!-- 声音选择弹窗 -->
+            <div v-if="showVoiceModal" class="fixed inset-0 bg-black/40 flex items-center justify-center z-40 px-6" @click.self="closeVoiceModal" data-page-node-id="bSjqlqRseWVo2glAGIrTsu">
+                <div class="glass bg-white/95 rounded-3xl p-5 w-full max-w-sm shadow-xl" data-page-node-id="Y7YvtJUyMHK8RAiZvNDRGU">
+                    <div class="flex justify-between items-center mb-2" data-page-node-id="BH2daG3DsEYZBmU6jix7sS">
+                        <h3 class="font-bold text-ink text-lg" data-page-node-id="gBGWCcPKr5slGSmEb2FEbu">{{ voicePromptMode ? '🎧 先挑一个陪伴声音' : '选择陪伴声音' }}</h3>
+                        <button @click="closeVoiceModal" class="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-400" data-page-node-id="FVUqe6RYG4No7qBMytEiGP"><i class="fa-solid fa-xmark" data-page-node-id="BB4CVXDmHqAMWT2bB8akS8"></i></button>
+                    </div>
+                    <p class="text-xs text-gray-400 mb-3" data-page-node-id="upEi5q2ZSM1JPiw2Hh13OT">{{ voicePromptMode ? '首次进入，建议先挑一个你喜欢的音色，之后每次回复都会用这个声音朗读给你听。' : '选定后将记住你的偏好，之后的回复都用这个声音。' }}<br data-page-node-id="ayQvtWF1q33W3TadPAuCBh"><span class="text-primary font-medium" data-page-node-id="ig2RH9PCyMI6L90VgB5waE">👆 点一下任意音色就能立即试听，满意后再点下方按钮确认。</span></p>
+                    <div class="space-y-2" data-page-node-id="ksb7F37KrnlceigbYgdxwo">
+                        <button v-for="v in VOICE_OPTIONS" :key="v.id" @click="selectAndPreview(v.id)"
+                            :class="['w-full flex items-center gap-3 p-3 rounded-2xl transition text-left', tempVoice === v.id ? 'bg-gradient-to-br from-primary to-primaryDark text-white shadow-md' : 'bg-white/70 hover:bg-white text-ink']" data-page-node-id="dIYDWpZFksHH29r2cGxcAz">
+                            <i :class="['fa-solid', v.icon, 'text-lg w-5 text-center']" data-page-node-id="JCbKNLfHhxQvQbwbLofsPg"></i>
+                            <div class="flex-1 min-w-0" data-page-node-id="uynHnzwKIjT8aiHov3YURr">
+                                <div class="font-medium truncate" data-page-node-id="WXZCkqQWB49sk58oLurK85">{{ v.name }} <span class="text-xs opacity-70 ml-1" data-page-node-id="667GUT8aSxikhfYYZiWeJj">{{ v.tag }}</span></div>
+                                <div class="text-xs opacity-70 truncate" data-page-node-id="OBMzxXxtqbtrBkdOIiAqQm">{{ v.desc }}</div>
+                            </div>
+                            <i v-if="tempVoice === v.id && previewState === 'generating'" class="fa-solid fa-spinner fa-spin text-lg" data-page-node-id="faiutsNUqYaaCyvdypHDgP"></i>
+                            <i v-else-if="tempVoice === v.id && previewState === 'playing'" class="fa-solid fa-volume-high text-lg animate-pulse" data-page-node-id="G1o9qyaRRmc5VCkrpfgSVd"></i>
+                            <i v-else-if="tempVoice === v.id" class="fa-solid fa-circle-check text-lg" data-page-node-id="dW393svwEFGS7K796PMRlJ"></i>
+                            <i v-else class="fa-solid fa-play text-xs opacity-40" data-page-node-id="r1BjuQXNADXdnG4xNnHRNn"></i>
+                        </button>
+                    </div>
+                    <button @click="saveVoice" class="w-full mt-4 bg-gradient-to-br from-primary to-primaryDark text-white font-medium py-3 rounded-2xl shadow-md active:scale-95 transition" data-page-node-id="4loZksCTW4wHdSQVArCfTl">{{ voicePromptMode ? '确认并开始陪伴' : '采用这个声音' }}</button>
+                    <button @click="playSpeakerTest" class="w-full mt-2 text-xs text-gray-500 hover:text-primary py-1.5 transition" data-page-node-id="MwALDI8fIY9ggfnVi1QblQ"><i class="fa-solid fa-bell mr-1" data-page-node-id="z4lhxP1a50X1e12AMLIoJz"></i>听不到声音？点这里测试扬声器</button>
+                    <p v-if="isIOS" class="text-[11px] text-amber-600 mt-1 text-center" data-page-node-id="ERpNFHrzIwPGNePJK3iSgp"><i class="fa-solid fa-triangle-exclamation mr-1" data-page-node-id="S4yssCcZEzJWMZJE8feWkX"></i>iPhone 用户：请把机身侧面的静音拨片拨到响铃档，否则所有声音会被静音（微信内尤其如此）</p>
+                </div>
+            </div>
+    </div>
+
+    <!-- ============ 页面三：记忆羁绊 ============ -->
+    <transition name="fade" data-page-node-id="mz9qCcGKuQOnRmfvIVTJKO">
+    <div v-if="currentPage === 'memory'" key="memory" class="absolute inset-0 z-20 bg-gray-50/95 flex flex-col" data-page-node-id="DPyVRvWAqPrBt9T6fOIjgS">
+        <header class="glass px-4 py-3 flex justify-between items-center shadow-sm" data-page-node-id="49CIIzmeGy8fbIpEKslokP">
+            <button @click="currentPage = 'chat'" class="w-10 h-10 rounded-full hover:bg-white/70 flex items-center justify-center text-gray-600" data-page-node-id="Gr2X7nTDWW5xPFeDYbcGZm">
+                <i class="fa-solid fa-chevron-left text-lg" data-page-node-id="jdZ6ec0TcF0SxUYdjnIgj4"></i>
+            </button>
+            <div class="font-bold text-lg text-ink" data-page-node-id="73ePHW3UclpFwyySQbMBsN">我的记忆羁绊</div>
+            <div class="w-10" data-page-node-id="yAEp1W9OWjZy5o0Q7KAubz"></div>
+        </header>
+        <div class="p-5 flex-1 overflow-y-auto" data-page-node-id="CHzJpMsQXXoNHeXA3DVARz">
+            <p class="text-xs text-gray-400 mb-4 text-center" data-page-node-id="RUuHjDe87bYTtWc9mp0EIB">系统仅记录用于陪伴的关键事实，您可随时删除。</p>
+
+            <!-- ====== 模式觉察（赛题方向③ · 跨场景） ====== -->
+            <div class="mb-6" data-page-node-id="UxjTZAWsNRvDPyrdUhz4xo">
+                <div class="flex items-center mb-2" data-page-node-id="BXg4feUafxTxwt3ET5j8uQ">
+                    <i class="fa-solid fa-wave-square text-primaryDark mr-2" data-page-node-id="ws0N9t1jDi4oAp938bxmE3"></i>
+                    <span class="font-bold text-ink" data-page-node-id="QH7JFy5Esk0iSMz5tekYTB">模式觉察</span>
+                    <span class="text-xs text-gray-400 ml-2" data-page-node-id="8qUQyiw5PsT0H344EZiCyQ">基于你主动表达的内容</span>
+                </div>
+                <div v-if="patterns.length === 0" class="bg-white/60 p-4 rounded-2xl text-center" data-page-node-id="2jT6xWtrZ3MwyH5wgiyhAM">
+                    <i class="fa-solid fa-circle-check text-2xl mb-1" style="color:#5eead4;" data-page-node-id="ASzmI9bV7BGVp27cwpsQ33"></i>
+                    <p class="text-sm text-gray-400" data-page-node-id="asqMCeeMqj9xDvnqTJ6drz">暂未识别出明显的反复模式</p>
+                </div>
+                <div v-else data-page-node-id="9Ws3POlzlXFN2oWbuUAkkq">
+                    <div v-for="p in patterns" :key="p.type" class="bg-white/90 p-3 rounded-2xl shadow-sm mb-2 border border-gray-100 flex items-start relative overflow-hidden" data-page-node-id="k8AZdcVCmFsp3LyGUI8tf9">
+                        <div class="absolute left-0 top-0 bottom-0 w-1" :style="{ background: patternColor(p.type) }" data-page-node-id="TnULS6raTLwOk6atC0huUg"></div>
+                        <i :class="patternIcon(p.type)" class="mt-0.5 mr-2 text-sm" :style="{ color: patternColor(p.type) }" data-page-node-id="oGDTzWuFbEbm8GCCBLAj5d"></i>
+                        <div class="pl-1 flex-1" data-page-node-id="LrTEBng843PzEs6qdAZDO6">
+                            <span class="text-sm font-semibold text-ink" data-page-node-id="XM52rVCUe2rUDZJF92zkH3">{{ patternLabel(p.type) }}</span>
+                            <p class="text-xs text-gray-600 leading-relaxed mt-0.5" data-page-node-id="lW8pkF6fLNohaGUWM6MHxa">{{ p.description }}</p>
+                        </div>
+                    </div>
+                </div>
+                <p v-if="patternNote" class="text-[11px] text-gray-400 mt-2 leading-relaxed" data-page-node-id="MLY83wYQt0KbSKpQU8BBUq">{{ patternNote }}</p>
+            </div>
+
+            <div v-if="memories.length === 0" class="text-center text-gray-400 mt-20" data-page-node-id="Z3twHr2A65A1FpEa2kFMkE">
+                <i class="fa-solid fa-seedling text-4xl mb-2 text-gray-300" data-page-node-id="xtMgBakmtN4OLmoYCIlJmL"></i>
+                <p data-page-node-id="srAHTN4kYrMN9aShuV7kA8">我们才刚认识，还没有产生记忆羁绊哦</p>
+            </div>
+            <div v-for="mem in memories" :key="mem.id" class="bg-white/90 p-4 rounded-2xl shadow-sm mb-3 border border-gray-100 flex justify-between items-center relative overflow-hidden" data-page-node-id="SWHpaM1Vk1VdevFWzH910L">
+                <div class="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-primary to-primaryDark" data-page-node-id="F1BPkrpaqh1o7GoFtZgC8B"></div>
+                <div class="pl-2 pr-2" data-page-node-id="q6bMb2tRUQpgZ1DVZ2PCgo">
+                    <p class="text-sm text-ink" data-page-node-id="6fSqFmNL3OvOtSEGZVE2OG">{{ mem.text }}</p>
+                </div>
+                <button @click="deleteMemory(mem.id)" class="w-8 h-8 text-gray-300 hover:text-red-400 transition shrink-0" data-page-node-id="ZAKR9BrK7E3yULRwP9FJR2">
+                    <i class="fa-solid fa-trash-can" data-page-node-id="OQSfI8CnjVWLAoxVtf4iNb"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+    </transition>
+
+    <!-- ============ SOS 紧急弹窗 ============ -->
+    <transition name="fade" data-page-node-id="hlKM722XSz462m3Dg8HSwx">
+    <div v-if="showSos" class="absolute inset-0 z-50 bg-black/50 flex justify-center items-center backdrop-blur-sm p-4" data-page-node-id="j391dApm5YrJu2qfqBO3dx">
+        <div class="bg-white rounded-3xl p-6 w-full max-w-sm text-center shadow-2xl" data-page-node-id="8afjNrmFzzXcxEnYjRG6xF">
+            <div class="w-16 h-16 bg-red-100 rounded-full mx-auto flex items-center justify-center mb-4" data-page-node-id="cKuR53sVd1KgYe6T4Jyago">
+                <i class="fa-solid fa-phone-volume text-3xl text-red-500" data-page-node-id="JqmND0dYBjeArA4sPFId61"></i>
+            </div>
+            <h3 class="text-xl font-bold text-ink mb-2" data-page-node-id="JmxN4AFCQHrJRFAgXJ8JUC">需要帮助吗？</h3>
+            <p class="text-sm text-gray-600 mb-6 leading-relaxed" data-page-node-id="loTCHNtuB4blULb3yuF1AB">如果您正在经历严重的心理痛苦或危机，请不要独自承受。专业人员 24 小时为您守候。</p>
+            <a href="tel:12356" class="block w-full bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-full mb-3 transition shadow-lg shadow-red-500/30" data-page-node-id="lBhQHL088hMjGbfz1KXs1l">
+                拨打 12356 心理援助热线
+            </a>
+            <button @click="showSos = false" class="block w-full bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-3 rounded-full transition" data-page-node-id="TVJzyRqGjtDlnvcEnSS0EL">
+                我没事，返回聊天
+            </button>
+        </div>
+    </div>
+    </transition>
+
+</div>
+
+<script>
+    const { createApp, ref, nextTick, onMounted } = Vue;
+
+    createApp({
+        setup() {
+            const currentPage = ref('landing');
+            const showSos = ref(false);
+            const isRecording = ref(false);
+            const inputText = ref('');
+            const isAiTyping = ref(false);
+            const isPlaying = ref(false);
+            const speechSupported = ref(false);
+            const voiceHint = ref('');
+            let voiceHintTimer = null;
+            const showVoiceHint = (msg) => {
+                voiceHint.value = msg;
+                if (voiceHintTimer) clearTimeout(voiceHintTimer);
+                voiceHintTimer = setTimeout(() => { voiceHint.value = ''; }, 4000);
+            };
+
+            const userId = ref('');
+
+            // ---- 语音音色选择（用户预选，LocalStorage 记住偏好）----
+            const VOICE_OPTIONS = [
+                { id: 'zh-CN-XiaoxiaoNeural', name: '温柔知心', desc: '温暖女声 · 默认', icon: 'fa-venus', tag: '女' },
+                { id: 'zh-CN-XiaoyiNeural',   name: '俏皮小易', desc: '活泼女声',       icon: 'fa-venus', tag: '女' },
+                { id: 'zh-CN-YunxiNeural',    name: '阳光少年', desc: '清亮男声',       icon: 'fa-mars', tag: '男' },
+                { id: 'zh-CN-YunyangNeural',  name: '沉稳主播', desc: '成熟男声',       icon: 'fa-mars',  tag: '男' },
+                { id: 'zh-CN-YunjianNeural',  name: '亲切大叔', desc: '幽默男声',       icon: 'fa-mars',  tag: '男' },
+            ];
+            const DEFAULT_VOICE = 'zh-CN-XiaoxiaoNeural';
+            const getStoredVoice = () => {
+                const v = localStorage.getItem('zhixin_voice');
+                return (v && VOICE_OPTIONS.some(o => o.id === v)) ? v : DEFAULT_VOICE;
+            };
+            const currentVoice = ref(getStoredVoice());
+            const tempVoice = ref(currentVoice.value);
+            const showVoiceModal = ref(false);
+            const voicePromptMode = ref(false);   // 首次强制引导选音色时为 true
+            const openVoiceModal = (force = false) => {
+                tempVoice.value = currentVoice.value;
+                voicePromptMode.value = !!force;
+                showVoiceModal.value = true;
+            };
+            // ---- 试听：点选某个音色时，立即用该音色朗读同一句话，方便对比音色差异 ----
+            const PREVIEW_TEXT = '你好，我是知心，很高兴为你朗读，我们可以聊聊天。';
+            const previewState = ref('');     // '' | 'generating' | 'playing'
+            let previewAudio = null;          // 当前试听音频实例（用于打断上一次试听）
+            let previewToken = 0;             // 防止快速连点时旧请求覆盖新请求
+            const stopPreview = () => {
+                if (previewAudio) { try { previewAudio.pause(); } catch (e) {} previewAudio = null; }
+            };
+            const previewVoice = async (voice) => {
+                const token = ++previewToken;
+                stopPreview();                 // 连点多个音色时，先停掉上一个声音
+                previewState.value = 'generating';
+                try {
+                    const resp = await fetch(`${API_BASE}/api/tts`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ text: PREVIEW_TEXT, voice }),
+                    });
+                    const data = await resp.json();
+                    if (token !== previewToken) return;   // 已有更新的试听请求，丢弃本次结果
+                    if (!data.audio_url) { previewState.value = ''; return; }
+                    const audio = new Audio(API_BASE + data.audio_url);
+                    previewAudio = audio;
+                    previewState.value = 'playing';
+                    const done = () => {
+                        previewState.value = '';
+                        if (previewAudio === audio) previewAudio = null;
+                    };
+                    audio.onended = done;
+                    audio.onerror = done;
+                    audio.play().catch(done);
+                } catch (e) {
+                    if (token === previewToken) previewState.value = '';
+                }
+            };
+            const selectAndPreview = (id) => {
+                tempVoice.value = id;
+                previewVoice(id);
+            };
+            const closeVoiceModal = () => {
+                stopPreview();
+                previewState.value = '';
+                showVoiceModal.value = false;
+            };
+            const saveVoice = () => {
+                currentVoice.value = tempVoice.value;
+                localStorage.setItem('zhixin_voice', currentVoice.value);
+                localStorage.setItem('zhixin_voice_chosen', '1');  // 标记用户已主动选过，之后不再强制引导
+                const wasPrompt = voicePromptMode.value;
+                voicePromptMode.value = false;
+                stopPreview();          // 停掉试听，避免与欢迎语重叠
+                previewState.value = '';
+                showVoiceModal.value = false;
+                playWelcome(currentVoice.value, wasPrompt);
+            };
+            const voiceName = (id) => { const o = VOICE_OPTIONS.find(x => x.id === id); return o ? o.name : ''; };
+
+            const chatHistory = ref([
+                { role: 'ai', text: '你好，我是知心。今天过得怎么样？如果有烦心事，我一直在这里听你说。' }
+            ]);
+            const memories = ref([]);
+            const patterns = ref([]);
+
+            // ---- 用户身份（无感追踪，LocalStorage 存 UUID）----
+            const getUserId = () => {
+                // 优先级1：URL 显式携带 uid（演示/测试链接，如 ?uid=demo_lin）——
+                // 跨天、跨设备身份稳定，专供比赛演示用固定合成账号
+                const urlUid = new URLSearchParams(window.location.search).get('uid');
+                if (urlUid && /^[A-Za-z0-9_-]{1,64}$/.test(urlUid)) {
+                    localStorage.setItem('zhixin_user_id', urlUid);
+                    return urlUid;
+                }
+                // 优先级2：本地存储的匿名身份（日常使用）
+                let id = localStorage.getItem('zhixin_user_id');
+                if (!id) {
+                    // 兼容性：crypto.randomUUID 仅安全上下文(HTTPS/localhost)可用；局域网 HTTP 下微信 X5 内核会抛错，
+                    // 故检测可用性，缺失时用 RFC4122 v4 降级生成器兜底，确保微信/UC 等 WebView 首次进入不中断。
+                    // 注意：微信内置浏览器会不定期清空/隔离网页存储，匿名身份可能跨天失效（已知局限，正式版需账号体系）。
+                    const uuid = (typeof crypto !== 'undefined' && crypto.randomUUID)
+                        ? crypto.randomUUID()
+                        : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+                            const r = (Math.random() * 16) | 0;
+                            const v = c === 'x' ? r : (r & 0x3) | 0x8;
+                            return v.toString(16);
+                        });
+                    id = 'user-' + uuid;
+                    localStorage.setItem('zhixin_user_id', id);
+                }
+                return id;
+            };
+            const agreeAndEnter = () => {
+                userId.value = getUserId();
+                currentPage.value = 'chat';
+                // 首次进入（用户从未主动选过音色）时，自动弹出选音色引导一次
+                if (!localStorage.getItem('zhixin_voice_chosen')) {
+                    openVoiceModal(true);
+                }
+            };
+
+            const scrollToBottom = () => {
+                nextTick(() => {
+                    const box = document.getElementById('chat-box');
+                    if (box) box.scrollTop = box.scrollHeight;
+                });
+            };
+
+            // ---- Web Audio 通道：只要在任意一次用户手势内激活过，之后播放不再受 5 秒窗口限制 ----
+            let audioCtx = null;
+            const ensureAudioCtx = () => {
+                try {
+                    if (!audioCtx) {
+                        const AC = window.AudioContext || window.webkitAudioContext;
+                        if (!AC) return null;
+                        audioCtx = new AC();
+                    }
+                    if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+                    return audioCtx;
+                } catch (_) { return null; }
+            };
+
+            // ---- 路线2：HTMLMediaElement 回退（受 5 秒手势窗口限制，可能被自动播放策略拦截）----
+            const playViaElement = (fullUrl, msg) => {
+                const audio = new Audio(fullUrl);
+                const done = () => { if (msg) msg.playing = false; isPlaying.value = false; };
+                audio.onended = done;
+                audio.onerror = done;
+                const p = audio.play();
+                if (p && p.catch) {
+                    p.catch(() => {
+                        done();
+                        // 自动播放被浏览器策略拦截：标记一下，提示用户手动点按钮
+                        if (msg) msg.autoplayFailed = true;
+                    });
+                }
+            };
+
+            // ---- 播放语音（带声纹动画）：优先 Web Audio（可跨长延迟自动播），失败回退 <audio> ----
+            // 注意：iPhone 静音拨片会掐掉 Web Audio 的输出，但不影响 <audio> 元素播放。
+            // 所以手机端（微信/移动浏览器）一律优先 <audio> 路线（昨天实测可出声的路线），
+            // 桌面端才优先 Web Audio（解决 30 秒长延迟自动播放被拦的问题）。
+            const isMobile = /Mobile|Android|iPhone|iPad|iPod|MicroMessenger/i.test(navigator.userAgent);
+            const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+            // iOS 静音拨片提示：网页无法直接检测静音开关状态。
+            // 仅在手动点「播放语音」时提示——手动重播多半意味着没听到声音；自动播放已走
+            // 解锁元素路线（不受静音拨片影响），无需打扰。
+            const muteHint = ref(false);
+            let muteHintTimer = null;
+            const maybeShowMuteHint = (manual) => {
+                if (!isIOS || !manual) return;
+                muteHint.value = true;
+                clearTimeout(muteHintTimer);
+                muteHintTimer = setTimeout(() => { muteHint.value = false; }, 4000);
+            };
+            const playAudio = (url, msg = null, manual = false) => {
+                if (!url) return;
+                const fullUrl = API_BASE + url;
+                if (msg) {
+                    msg.playing = true;
+                    msg.autoplayFailed = false;
+                }
+                isPlaying.value = true;
+                maybeShowMuteHint(manual);
+                const done = () => { if (msg) msg.playing = false; isPlaying.value = false; };
+
+                // 手机端：<audio> 优先（不受 iPhone 静音拨片影响），被拦再退 Web Audio
+                if (isMobile) {
+                    tryPlayElementThenWebAudio(fullUrl, msg, done);
+                    return;
+                }
+                // 桌面端：Web Audio 优先（手势内激活过即可跨长延迟自动播）
+                if (audioCtx && audioCtx.state === 'running') {
+                    fetch(fullUrl)
+                        .then(r => { if (!r.ok) throw new Error('http ' + r.status); return r.arrayBuffer(); })
+                        .then(buf => audioCtx.decodeAudioData(buf))
+                        .then(audioBuf => {
+                            if (!audioCtx || audioCtx.state !== 'running') throw new Error('ctx suspended');
+                            const src = audioCtx.createBufferSource();
+                            src.buffer = audioBuf;
+                            src.onended = done;
+                            src.connect(audioCtx.destination);
+                            src.start();
+                        })
+                        .catch(() => playViaElement(fullUrl, msg));
+                    return;
+                }
+                playViaElement(fullUrl, msg);
+            };
+
+            // <audio> 播放失败（如自动播放策略拦截）时，回退 Web Audio 重试一次。
+            // 中途断流自愈：微信内核对流式（206 分段）加载偶发中途掐断，表现为"只读出头几个字"。
+            // 检测到已开始播放却未到结尾就 error/pause => 把整段音频完整下载成 Blob（数据全在本地，
+            // 不可能再断流），仍用同一个已解锁元素重播一次——保持"不受静音拨片影响"的特性不变。
+            const tryPlayElementThenWebAudio = (fullUrl, msg, done) => {
+                let audio;
+                if (sharedAudio) {
+                    // 复用首次手势解锁过的专用元素：换 src 后 play() 不再需要新手势，
+                    // 自动朗读得以绕过 iOS 自动播放策略，且不受 iPhone 静音拨片影响
+                    audio = sharedAudio;
+                    audio.src = fullUrl;
+                } else {
+                    audio = new Audio(fullUrl);
+                }
+                let started = false;
+                let finished = false;
+                let healed = false;   // 断流自愈只做一次，避免无限循环
+                let blobUrl = '';
+
+                const finish = () => {
+                    if (finished) return;
+                    finished = true;
+                    if (blobUrl) { try { URL.revokeObjectURL(blobUrl); } catch (_) {} }
+                    done();
+                };
+                // 已开始播放却被中途打断：整段下载成 Blob 后用同一元素重播
+                const healInterrupted = () => {
+                    if (finished || healed) return;
+                    healed = true;
+                    fetch(fullUrl)
+                        .then(r => { if (!r.ok) throw new Error('http ' + r.status); return r.blob(); })
+                        .then(blob => {
+                            if (finished) return;
+                            blobUrl = URL.createObjectURL(blob);
+                            audio.src = blobUrl;
+                            audio.play().catch(() => {});
+                        })
+                        .catch(() => { if (!finished) fallbackToWebAudio(fullUrl, msg, finish); });
+                };
+
+                audio.onplaying = () => { started = true; };
+                audio.onended = finish;
+                audio.onerror = () => { if (!started) fallbackToWebAudio(fullUrl, msg, finish); else healInterrupted(); };
+                audio.onpause = () => {
+                    // 未播到结尾的 pause 视为被系统/内核掐断（ended 前 currentTime < duration）
+                    if (started && !finished && audio.currentTime < (audio.duration || 1e9) - 0.05) {
+                        healInterrupted();
+                    }
+                };
+                const p = audio.play();
+                if (p && p.catch) {
+                    p.catch(() => { if (!started) fallbackToWebAudio(fullUrl, msg, finish); });
+                }
+            };
+            const fallbackToWebAudio = (fullUrl, msg, done) => {
+                if (!(audioCtx && audioCtx.state === 'running')) {
+                    if (msg) msg.autoplayFailed = true;   // 提示用户手动点「播放语音」
+                    return;
+                }
+                fetch(fullUrl)
+                    .then(r => { if (!r.ok) throw new Error('http ' + r.status); return r.arrayBuffer(); })
+                    .then(buf => audioCtx.decodeAudioData(buf))
+                    .then(audioBuf => {
+                        const src = audioCtx.createBufferSource();
+                        src.buffer = audioBuf;
+                        src.onended = done;
+                        src.connect(audioCtx.destination);
+                        src.start();
+                    })
+                    .catch(() => { if (msg) msg.autoplayFailed = true; });
+            };
+
+            // 用户手动点击「播放语音」：一定在用户手势内，必然能播；同时视为"可能没听到"，提示静音拨片
+            const replayAudio = (msg) => {
+                if (!msg || !msg.audioUrl) return;
+                playAudio(msg.audioUrl, msg, true);
+            };
+
+            // 扬声器测试：与真实播放走完全相同的输出路线（手机端 <audio> / 桌面端 Web Audio），
+            // 嘟声由前端现场合成（0.6s 880Hz WAV，base64 内嵌），不依赖任何网络文件
+            const beepWavUrl = (() => {
+                try {
+                    const sr = 8000, n = 4800;              // 0.6 秒
+                    const bytes = new Uint8Array(44 + n);
+                    const dv = new DataView(bytes.buffer);
+                    const ws = (o, s) => { for (let i = 0; i < s.length; i++) dv.setUint8(o + i, s.charCodeAt(i)); };
+                    ws(0, 'RIFF'); dv.setUint32(4, 36 + n, true); ws(8, 'WAVE');
+                    ws(12, 'fmt '); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
+                    dv.setUint32(24, sr, true); dv.setUint32(28, sr, true); dv.setUint16(32, 1, true); dv.setUint16(34, 8, true);
+                    ws(36, 'data'); dv.setUint32(40, n, true);
+                    for (let i = 0; i < n; i++) {
+                        const env = Math.min(1, i / 400, (n - i) / 800);   // 淡入淡出防爆音
+                        dv.setUint8(44 + i, 128 + Math.round(100 * Math.sin(2 * Math.PI * 880 * i / sr) * env));
+                    }
+                    let bin = '';
+                    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+                    return 'data:audio/wav;base64,' + btoa(bin);
+                } catch (_) { return ''; }
+            })();
+            const playSpeakerTest = () => {
+                if (isMobile) {
+                    // 手机端：与语音播放同走 <audio>，测试结果即真实结果
+                    if (!beepWavUrl) { voiceHint.value = '⚠ 测试音生成失败'; return; }
+                    const a = new Audio(beepWavUrl);
+                    const p = a.play();
+                    if (p && p.catch) p.catch(() => { voiceHint.value = '⚠ 测试音被拦截，请再点一次'; setTimeout(() => voiceHint.value = '', 4000); });
+                    return;
+                }
+                // 桌面端：Web Audio 振荡器三声上行
+                const ctx = ensureAudioCtx();
+                if (!ctx || ctx.state !== 'running') {
+                    voiceHint.value = '⚠ 声音通道未激活，请再点一次测试按钮';
+                    setTimeout(() => { if (voiceHint.value && voiceHint.value.includes('声音通道')) voiceHint.value = ''; }, 4000);
+                    return;
+                }
+                const now = ctx.currentTime;
+                [523, 659, 784].forEach((freq, i) => {   // C5-E5-G5 三声上行
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.value = freq;
+                    const t0 = now + i * 0.35;
+                    gain.gain.setValueAtTime(0, t0);
+                    gain.gain.linearRampToValueAtTime(0.6, t0 + 0.03);
+                    gain.gain.linearRampToValueAtTime(0, t0 + 0.28);
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start(t0);
+                    osc.stop(t0 + 0.3);
+                });
+            };
+
+            // ---- 选定音色后：调用后端 /api/tts 生成该音色欢迎语并播放 ----
+            const playWelcome = async (voice, pushBubble = false) => {
+                // 首次引导 vs 之后手动更换，文案略有区别
+                const welcomeText = pushBubble
+                    ? `我是知心，以后就用「${voiceName(voice)}」这个声音陪你聊天啦。有什么想说的，随时告诉我。`
+                    : `好的，我已经切换到「${voiceName(voice)}」这个声音，以后都会用它把我对你说的话朗读给你听。`;
+                let wMsg = null;
+                if (pushBubble) {
+                    wMsg = { role: 'ai', text: welcomeText, playing: false };
+                    chatHistory.value.push(wMsg);
+                    scrollToBottom();
+                }
+                try {
+                    const resp = await fetch(`${API_BASE}/api/tts`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ text: welcomeText, voice }),
+                    });
+                    const data = await resp.json();
+                    if (data.audio_url) playAudio(data.audio_url, wMsg);
+                } catch (e) {
+                    // 后端不可用则静默失败；文字（若已推送）已展示
+                }
+            };
+
+            // ---- 音频解锁：首次用户交互时静音播放一次，满足浏览器/手机自动播放策略 ----
+            const makeSilentWav = () => {
+                const sr = 8000, seconds = 0.05, n = Math.floor(sr * seconds);
+                const buf = new ArrayBuffer(44 + n * 2);
+                const dv = new DataView(buf);
+                const ws = (o, s) => { for (let i = 0; i < s.length; i++) dv.setUint8(o + i, s.charCodeAt(i)); };
+                ws(0, 'RIFF'); dv.setUint32(4, 36 + n * 2, true); ws(8, 'WAVE');
+                ws(12, 'fmt '); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true);
+                dv.setUint16(22, 1, true); dv.setUint32(24, sr, true);
+                dv.setUint32(28, sr * 2, true); dv.setUint16(32, 2, true); dv.setUint16(34, 16, true);
+                ws(36, 'data'); dv.setUint32(40, n * 2, true);
+                return URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
+            };
+            const SILENT_WAV_URL = makeSilentWav();
+            // 专用音频元素：首次手势内播放静音 WAV 解锁，之后给它换 src 再 play() 无需新手势
+            // ——这是让「回复生成完自动朗读」绕过 iOS 自动播放策略的关键，且此路线不受 iPhone 静音拨片影响
+            let sharedAudio = null;
+            const unlockSharedAudio = () => {
+                if (sharedAudio) return;
+                try {
+                    sharedAudio = new Audio();
+                    sharedAudio.src = SILENT_WAV_URL;
+                    const p = sharedAudio.play();
+                    if (p && p.then) p.then(() => sharedAudio.pause()).catch(() => {});
+                    else sharedAudio.pause();
+                } catch (_) { sharedAudio = null; }
+            };
+            let audioUnlocked = false;
+            const unlockAudio = () => {
+                if (audioUnlocked) return;
+                audioUnlocked = true;
+                ensureAudioCtx();      // 手势内激活 Web Audio 通道
+                unlockSharedAudio();   // 手势内解锁专用音频元素（自动朗读走它，不受静音拨片影响）
+                ['pointerdown', 'touchstart', 'click', 'keydown'].forEach((ev) =>
+                    window.removeEventListener(ev, unlockAudio)
+                );
+            };
+            const gestureHandler = () => { unlockAudio(); ensureAudioCtx(); };
+            ['pointerdown', 'touchstart', 'click', 'keydown'].forEach((ev) =>
+                window.addEventListener(ev, gestureHandler)
+            );
+
+            // ---- 接口2：发送消息（多智能体后端）----
+            const sendMessage = async () => {
+                const text = inputText.value.trim();
+                if (!text || isAiTyping.value) return;
+                chatHistory.value.push({ role: 'user', text });
+                inputText.value = '';
+                isAiTyping.value = true; scrollToBottom();
+
+                try {
+                    const resp = await fetch(`${API_BASE}/api/chat`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ user_id: userId.value, text, voice: currentVoice.value })
+                    });
+                    const data = await resp.json();
+                    const aiMsg = { role: 'ai', text: data.message || '我在听。', playing: false, audioUrl: data.audio_url || '', autoplayFailed: false };
+                    chatHistory.value.push(aiMsg);
+                    isAiTyping.value = false; scrollToBottom();
+                    if (data.audio_url) playAudio(data.audio_url, aiMsg);
+                    // High 风险：强制弹出救助窗
+                    if (data.risk_level === 'High') showSos.value = true;
+                } catch (e) {
+                    isAiTyping.value = false;
+                    chatHistory.value.push({ role: 'ai', text: '嗯……我这边的网络好像不太顺畅，没听清你刚才说的话。可以试着再说一次吗？如果一直这样，麻烦刷新一下页面再回来找我。' });
+                    scrollToBottom();
+                }
+            };
+
+            // ---- 接口3：语音识别（Web Speech API，前期方案）----
+            let recognition = null;
+            onMounted(() => {
+                const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+                if (SR) {
+                    recognition = new SR();
+                    recognition.lang = 'zh-CN';
+                    recognition.interimResults = false;
+                    recognition.continuous = false;
+                    recognition.onresult = (e) => {
+                        const t = e.results[0][0].transcript;
+                        inputText.value = t; sendMessage();
+                    };
+                    recognition.onerror = () => {
+                        isRecording.value = false;
+                        showVoiceHint('语音输入未能启动（麦克风不可用或当前网络环境不支持）。请直接在输入框打字，AI 同样会回应你。');
+                    };
+                    recognition.onend = () => { isRecording.value = false; };
+                    speechSupported.value = true;
+                }
+            });
+            const startRecording = () => {
+                if (!recognition) {
+                    isRecording.value = true;
+                    showVoiceHint('当前浏览器/微信不支持语音识别。已为你填入一段示例，可直接发送或用键盘自行输入。');
+                    return;
+                }
+                isRecording.value = true;
+                try { recognition.start(); } catch (_) {
+                    isRecording.value = false;
+                    showVoiceHint('语音输入启动失败（麦克风不可用或当前环境不支持）。请直接在输入框打字。');
+                }
+            };
+            const stopRecording = () => {
+                if (recognition) { try { recognition.stop(); } catch (_) {} }
+                // 不支持时给一个演示性回退，保证流程可走通
+                if (!speechSupported.value && isRecording.value) {
+                    isRecording.value = false;
+                    inputText.value = '今天工作被领导批评了，心里特别不是滋味。';
+                    setTimeout(sendMessage, 400);
+                }
+            };
+
+            // ---- 接口4：记忆羁绊管理 ----
+            const loadMemories = async () => {
+                try {
+                    const r = await fetch(`${API_BASE}/api/memory?user_id=${userId.value}`);
+                    const d = await r.json();
+                    memories.value = (d.memories || []).map(m => ({ id: m.id, text: m.text }));
+                } catch (e) { memories.value = []; }
+            };
+            const goMemory = () => { loadMemories(); loadPatterns(); currentPage.value = 'memory'; };
+            const deleteMemory = async (id) => {
+                try { await fetch(`${API_BASE}/api/memory/${id}`, { method: 'DELETE' }); } catch (_) {}
+                memories.value = memories.value.filter(m => m.id !== id);
+            };
+
+            // ---- 接口5：跨场景模式觉察（赛题方向③）----
+            const loadPatterns = async () => {
+                try {
+                    const r = await fetch(`${API_BASE}/api/patterns?user_id=${userId.value}`);
+                    const d = await r.json();
+                    patterns.value = d.patterns || [];
+                    patternNote.value = d.note || '';
+                } catch (e) { patterns.value = []; }
+            };
+            const patternNote = ref('');
+            const patternLabel = (t) => ({
+                recurring_topic: '话题反复', late_night_low: '深夜低落', sustained_negative: '持续负面',
+            }[t] || '模式觉察');
+            const patternIcon = (t) => ({
+                recurring_topic: 'fa-solid fa-repeat', late_night_low: 'fa-solid fa-moon',
+                sustained_negative: 'fa-solid fa-face-frown',
+            }[t] || 'fa-solid fa-wave-square');
+            const patternColor = (t) => ({
+                recurring_topic: '#F59E0B', late_night_low: '#6366F1', sustained_negative: '#EF4444',
+            }[t] || '#0F766E');
+
+            return {
+                currentPage, showSos, isRecording, inputText, isAiTyping, isPlaying, speechSupported, voiceHint,
+                chatHistory, memories, patterns, patternNote, agreeAndEnter, sendMessage, replayAudio, playSpeakerTest, isIOS, muteHint,
+                startRecording, stopRecording, goMemory, deleteMemory,
+                patternLabel, patternIcon, patternColor,
+                VOICE_OPTIONS, currentVoice, tempVoice, showVoiceModal, voicePromptMode, openVoiceModal, saveVoice, voiceName,
+                previewState, selectAndPreview, closeVoiceModal
+            };
+        }
+    }).mount('#app');
+</script>
+</body>
+</html>

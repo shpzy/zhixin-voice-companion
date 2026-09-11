@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+env/
+.eggs/
+*.egg-info/
+
+# 运行时数据（不应提交到仓库）
+chroma_db/
+logs/
+startup.log
+perf.log
+*.log
+
+# 用户私密配置
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# 测试 / 缓存
+.pytest_cache/
+.coverage
+htmlcov/
+.cache/
+*.tmp
+
+# 部署相关
+main.py.bak
+*.bak
+deploy_*.zip
+zhixin_*.zip
